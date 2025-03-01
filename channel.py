@@ -7,6 +7,10 @@ import os
 from datetime import datetime
 from flask_cors import CORS  # Import Flask-CORS
 
+import traceback
+@app.errorhandler(500)
+def internal_error(exception):
+   return "<pre>"+traceback.format_exc()+"</pre>"
 def parse_timestamp(ts):
     try:
         return float(ts)
