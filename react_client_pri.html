@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>React Chat Client</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      color: #333;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      background: #007BFF;
+      color: white;
+      margin: 5px;
+      padding: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    input, button {
+      margin-top: 10px;
+      padding: 8px;
+    }
+    .chat-container {
+      text-align: left;
+    }
+    .message {
+      border-bottom: 1px solid #ddd;
+      padding: 5px 0;
+    }
+    .message-sender {
+      font-weight: bold;
+    }
+    .back-btn {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React & Babel Libraries -->
+  <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+  <!-- Using Babel Standalone version 7 -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Integrated React Client Code -->
+  <script type="text/babel">
+    // Hub endpoint to get the list of channels (for production use)
+    const HUB_URL = "http://vm146.rz.uos.de/hub/channels"; 
+    // This must match the CHANNEL_AUTHKEY in your Flask channel server!
+    const CHANNEL_AUTHKEY = "0987654321"; 
+
+    function App() {
+      const [username, setUsername] = React.useState(localStorage.getItem("username") || "");
+      const [tempUsername, setTempUsername] = React.useState("");
+      const [selectedChannel, setSelectedChannel] = React.useState(null);
+
+      const saveUsername = () => {
+        if (tempUsername.trim()) {
+          setUsername(tempUsername);
+          localStorage.setItem("username", tempUsername);
+        }
+      };
+
+      return (
+        <div className="container">
+          <h1>Welcome {username || "Guest"}!</h1>
+          {!username ? (
+            <div>
+              <input 
+                type="text" 
+                placeholder="Enter your name" 
+                value={tempUsername} 
+                onChange={(e) => setTempUsername(e.target.value)}
+              />
+              <button onClick={saveUsername}>Save</button>
+            </div>
+          ) : (
+            <>
+              {!selectedChannel ? (
+                <ChannelList onSelectChannel={setSelectedChannel} />
+              ) : (
+                <ChatChannel 
+                  channel={selectedChannel} 
+                  username={username} 
+                  onBack={() => setSelectedChannel(null)} 
+                />
+              )}
+            </>
+          )}
+        </div>
+      );
+    }
+
+    // ChannelList fetches channels from the hub or uses a hard-coded list for local testing.
+    function ChannelList({ onSelectChannel }) {
+      const [channels, setChannels] = React.useState([]);
+
+      React.useEffect(() => {
+        // Uncomment the fetch below to get channels from the hub when it's available:
+        /*
+        fetch(HUB_URL)
+          .then(response => response.json())
+          .then(data => {
+            // Assuming the hub returns an object like { channels: [...] }
+            setChannels(data.channels);
+          })
+          .catch(error => {
+            console.error("Error fetching channels:", error);
+            // Fallback to a hard-coded channel list for local testing:
+            setChannels([{
+              id: 1,
+              name: "CalcWizard: The Math Helper",
+              endpoint: "http://localhost:5001",
+              type_of_service: "aiweb24:chat"
+            }]);
+          });
+        */
+
+        // For local testing, use a hard-coded channel list:
+        setChannels([{
+          id: 1,
+          name: "CalcWizard: The Math Helper",
+          endpoint: "http://localhost:5001",
+          type_of_service: "aiweb24:chat"
+        }]);
+      }, []);
+
+      return (
+        <div>
+          <h2>Available Channels</h2>
+          <ul>
+            {channels.map(channel => (
+              <li key={channel.id} onClick={() => onSelectChannel(channel)}>
+                {channel.name} (Type: {channel.type_of_service})
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+
+    // ChatChannel displays messages from the channel and lets the user send new messages.
+    function ChatChannel({ channel, username, onBack }) {
+      const [messages, setMessages] = React.useState([]);
+      const [newMessage, setNewMessage] = React.useState("");
+
+      // Function to fetch messages from the channel server
+      const fetchMessages = () => {
+        fetch(channel.endpoint, {
+          headers: {
+            "Authorization": "authkey " + CHANNEL_AUTHKEY
+          }
+        })
+          .then(response => response.json())
+          .then(data => setMessages(data))
+          .catch(error => console.error("Error fetching messages:", error));
+      };
+
+      // Fetch messages initially and then poll every 3 seconds
+      React.useEffect(() => {
+        fetchMessages();
+        const interval = setInterval(fetchMessages, 3000);
+        return () => clearInterval(interval);
+      }, [channel]);
+
+      const sendMessage = () => {
+        if (!newMessage.trim()) return;
+
+        const messageData = {
+          content: newMessage,
+          sender: username,
+          timestamp: Date.now() / 1000, // using seconds for timestamp
+          extra: null
+        };
+
+        fetch(channel.endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "authkey " + CHANNEL_AUTHKEY
+          },
+          body: JSON.stringify(messageData)
+        })
+        .then(response => {
+          if(response.ok) {
+            setNewMessage("");
+            // Optionally fetch messages immediately after sending
+            fetchMessages();
+          } else {
+            throw new Error("Error sending message");
+          }
+        })
+        .catch(error => console.error("Error:", error));
+      };
+
+      return (
+        <div className="chat-container">
+          <button className="back-btn" onClick={onBack}>← Back to Channels</button>
+          <h2>{channel.name}</h2>
+          <div style={{
+              maxHeight: "300px", 
+              overflowY: "auto", 
+              border: "1px solid #ddd", 
+              padding: "10px", 
+              marginBottom: "10px"
+            }}>
+            {messages.map((msg, index) => (
+              <div key={index} className="message">
+                <span className="message-sender">{msg.sender}: </span>
+                <span className="message-content">{msg.content}</span>
+              </div>
+            ))}
+          </div>
+          <input 
+            type="text" 
+            placeholder="Type your message" 
+            value={newMessage} 
+            onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={(e) => { if(e.key === "Enter") sendMessage(); }}
+          />
+          <button onClick={sendMessage}>Send</button>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
