@@ -34,7 +34,7 @@ app.app_context().push()
 # Hub and Channel configuration
 HUB_URL = 'http://localhost:5555'
 HUB_AUTHKEY = '1234567890'
-CHANNEL_AUTHKEY = 'Sdh-ako34-hf'
+CHANNEL_AUTHKEY = '0987654321'
 CHANNEL_NAME = "CalcWizard: The Math Helper"
 CHANNEL_ENDPOINT = "https://vm146.rz.uni-osnabrueck.de/u039/hw3/channel.wsgi"
 CHANNEL_FILE = 'messages.json'
