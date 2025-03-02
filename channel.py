@@ -7,6 +7,10 @@ import os
 from datetime import datetime
 from flask_cors import CORS  # Import Flask-CORS
 
+
+print("LOADED channel.py!") 
+
+
 def parse_timestamp(ts):
     try:
         return float(ts)
