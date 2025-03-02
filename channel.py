@@ -1,14 +1,24 @@
-from flask import Flask, request, jsonify
-import json
-import requests
-import time
-import re
+"""
+channel.py - A simple channel server for CalcWizard
+"""
+
 import os
+import json
+import re
+import time
 from datetime import datetime
-from flask_cors import CORS  # Import Flask-CORS
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import requests
 
+print("LOADED channel.py!")
 
-print("LOADED channel.py!") 
+# Constants
+MAX_MESSAGES = 100
+MAX_AGE_SECONDS = 86400
+
+class ConfigClass(object):
+    SECRET_KEY = "This is an INSECURE secret!! DO NOT use this in production!!"
 
 
 def parse_timestamp(ts):
@@ -21,165 +31,170 @@ def parse_timestamp(ts):
         except Exception as e:
             print("Error parsing timestamp:", ts, e)
             return 0
-        
-# Constants for message limiting
-MAX_MESSAGES = 100
-MAX_AGE_SECONDS = 86400
 
-class ConfigClass(object):
-    SECRET_KEY = 'This is an INSECURE secret!! DO NOT use this in production!!'
 
-# Create Flask app and enable CORS for all routes
+# Create Flask app
 app = Flask(__name__)
-CORS(app)  # This will add Access-Control-Allow-Origin: * to all responses
-app.config.from_object(__name__ + '.ConfigClass')
+CORS(app)
+app.config.from_object(__name__ + ".ConfigClass")
 app.app_context().push()
 
-# Hub and Channel configuration
+# Hub config: Use your course hub + the provided server authkey
 HUB_URL = "http://vm146.rz.uni-osnabrueck.de/hub"
-HUB_AUTHKEY = 'Crr-K24d-2N'
+HUB_AUTHKEY = "Crr-K24d-2N"  # This is for registering with the hub
 
-CHANNEL_AUTHKEY = '0987654321'
+# Channel config
+CHANNEL_AUTHKEY = "0987654321"   # This is for clients calling your channel
 CHANNEL_NAME = "CalcWizard: The Math Helper"
 CHANNEL_ENDPOINT = "https://vm146.rz.uni-osnabrueck.de/u039/hw3/channel.wsgi"
-CHANNEL_AUTHKEY = "0987654321"
-CHANNEL_FILE = 'messages.json'
-CHANNEL_TYPE_OF_SERVICE = 'aiweb24:chat'
+CHANNEL_FILE = "messages.json"
+CHANNEL_TYPE_OF_SERVICE = "aiweb24:chat"
 
-@app.cli.command('register')
+
+@app.cli.command("register")
 def register_command():
-    global CHANNEL_AUTHKEY, CHANNEL_NAME, CHANNEL_ENDPOINT
-    response = requests.post(HUB_URL + '/channels',
-                             headers={'Authorization': 'authkey ' + HUB_AUTHKEY},
-                             data=json.dumps({
-                                "name": CHANNEL_NAME,
-                                "endpoint": CHANNEL_ENDPOINT,
-                                "authkey": CHANNEL_AUTHKEY,
-                                "type_of_service": CHANNEL_TYPE_OF_SERVICE,
-                             }))
+    """
+    Registers this channel with the hub using the HUB_AUTHKEY
+    """
+    response = requests.post(
+        HUB_URL + "/channels",
+        headers={"Authorization": "authkey " + HUB_AUTHKEY},  # Must be the hub key, not channel key
+        data=json.dumps({
+            "name": CHANNEL_NAME,
+            "endpoint": CHANNEL_ENDPOINT,
+            "authkey": CHANNEL_AUTHKEY,
+            "type_of_service": CHANNEL_TYPE_OF_SERVICE,
+        })
+    )
     if response.status_code != 200:
-        print("Error creating channel: " + str(response.status_code))
+        print("Error creating channel:", response.status_code)
         print(response.text)
-        return
 
-def check_authorization(request):
-    global CHANNEL_AUTHKEY
-    if 'Authorization' not in request.headers:
+
+def check_authorization(req):
+    """
+    Checks if the incoming request matches CHANNEL_AUTHKEY.
+    """
+    if "Authorization" not in req.headers:
         return False
-    if request.headers['Authorization'] != 'authkey ' + CHANNEL_AUTHKEY:
+    if req.headers["Authorization"] != ("authkey " + CHANNEL_AUTHKEY):
         return False
     return True
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    global CHANNEL_NAME
-    if not check_authorization(request):
-        return "Invalid authorization", 400
-    return jsonify({'name': CHANNEL_NAME}), 200
 
-@app.route('/', methods=['GET'])
-def home_page():
+@app.route("/health", methods=["GET"])
+def health_check():
+    # You must send the channel authkey in the header to pass
     if not check_authorization(request):
         return "Invalid authorization", 400
+    return jsonify({"name": CHANNEL_NAME}), 200
+
+
+@app.route("/", methods=["GET"])
+def home_page():
+    # Must have correct Authorization
+    if not check_authorization(request):
+        return "Invalid authorization", 400
+
     messages = enforce_message_limits(read_messages())
     return jsonify(messages)
 
-@app.route('/', methods=['POST'])
+
+@app.route("/", methods=["POST"])
 def send_message():
+    # Must have correct Authorization
     if not check_authorization(request):
         return "Invalid authorization", 400
 
     message = request.json
     if not message:
         return "No message", 400
-    if 'content' not in message:
+    if "content" not in message:
         return "No content", 400
-    if 'sender' not in message:
+    if "sender" not in message:
         return "No sender", 400
-    if 'timestamp' not in message:
+    if "timestamp" not in message:
         return "No timestamp", 400
 
-    extra = message.get('extra', None)
-    original_content = message['content']
+    extra = message.get("extra", None)
+    original_content = message["content"]
 
-    # --- Filtering ---
-    # For a math-help channel, we filter messages that do not contain any math symbols or digits.
+    # Filtering: only math-related
     if not re.search(r"[0-9+\-*/().]", original_content):
         filtered_content = "[Filtered] Off-topic message for CalcWizard."
     else:
         filtered_content = original_content
 
     new_message = {
-        'content': filtered_content,
-        'sender': message['sender'],
-        'timestamp': message['timestamp'],
-        'extra': extra
+        "content": filtered_content,
+        "sender": message["sender"],
+        "timestamp": message["timestamp"],
+        "extra": extra
     }
 
     messages = read_messages()
     messages.append(new_message)
 
-    # --- Active Response ---
-    # Instead of only processing messages that are entirely math expressions,
-    # try to extract a math expression from the input.
-    math_match = re.search(r'([\d\.\(\)]+(?:\s*[\+\-\*/]\s*[\d\.\(\)]+)+)', original_content)
+    # Active response: if expression found, evaluate
+    math_match = re.search(r"([\d.\(\)]+(?:\s*[\+\-\*/]\s*[\d.\(\)]+)+)", original_content)
     if math_match:
         math_expr = math_match.group(1)
         try:
-            # Evaluate the extracted math expression in a restricted environment.
             result = eval(math_expr, {"__builtins__": None}, {})
             response_text = f"Result: {result}"
-        except Exception as e:
+        except Exception:
             response_text = "Error: Unable to evaluate the expression. Please check your math syntax."
+
         active_response = {
-            'content': response_text,
-            'sender': "CalcWizard",
-            'timestamp': time.time(),
-            'extra': None
+            "content": response_text,
+            "sender": "CalcWizard",
+            "timestamp": time.time(),
+            "extra": None
         }
         messages.append(active_response)
 
-    # Enforce message limits (by age and total count) before saving.
+    # Enforce message limits
     messages = enforce_message_limits(messages)
     save_messages(messages)
     return "OK", 200
 
+
 def read_messages():
-    global CHANNEL_FILE
     try:
-        f = open(CHANNEL_FILE, 'r')
-    except FileNotFoundError:
-        return []
-    try:
-        messages = json.load(f)
-    except json.decoder.JSONDecodeError:
+        with open(CHANNEL_FILE, "r") as f:
+            messages = json.load(f)
+    except (FileNotFoundError, json.decoder.JSONDecodeError):
         messages = []
-    f.close()
     return messages
 
+
 def save_messages(messages):
-    global CHANNEL_FILE
-    with open(CHANNEL_FILE, 'w') as f:
+    with open(CHANNEL_FILE, "w") as f:
         json.dump(messages, f)
 
+
 def enforce_message_limits(messages):
-    current_time = time.time()
-    messages = [msg for msg in messages if current_time - parse_timestamp(msg["timestamp"]) <= MAX_AGE_SECONDS]
+    now = time.time()
+    # Remove old messages
+    messages = [m for m in messages if now - parse_timestamp(m["timestamp"]) <= MAX_AGE_SECONDS]
+    # Trim if over max
     if len(messages) > MAX_MESSAGES:
         messages = messages[-MAX_MESSAGES:]
     return messages
 
+
 def initialize_channel():
     if not os.path.exists(CHANNEL_FILE) or not read_messages():
         welcome_message = {
-            'content': "Welcome to CalcWizard: The Math Helper! Send me a math expression, and I'll compute it for you.",
-            'sender': "System",
-            'timestamp': time.time(),
-            'extra': None
+            "content": "Welcome to CalcWizard: The Math Helper! Send me a math expression...",
+            "sender": "System",
+            "timestamp": time.time(),
+            "extra": None
         }
         save_messages([welcome_message])
 
-if __name__ == '__main__':
+
+# Only call app.run if we want dev server, not mod_wsgi
+if __name__ == "__main__":
     initialize_channel()
-    #app.run(port=5001, debug=True)
-    
+    app.run(port=5001, debug=True)
