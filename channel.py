@@ -37,7 +37,8 @@ app.app_context().push()
 
 # Hub and Channel configuration
 HUB_URL = "http://vm146.rz.uni-osnabrueck.de/hub"
-HUB_AUTHKEY = '1234567890'
+HUB_AUTHKEY = 'Crr-K24d-2N'
+
 CHANNEL_AUTHKEY = '0987654321'
 CHANNEL_NAME = "CalcWizard: The Math Helper"
 CHANNEL_ENDPOINT = "https://vm146.rz.uni-osnabrueck.de/u039/hw3/channel.wsgi"
