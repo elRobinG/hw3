@@ -58,8 +58,6 @@ def register_command():
 
 def check_authorization(request):
     global CHANNEL_AUTHKEY
-    if app.debug:
-        return True
     if 'Authorization' not in request.headers:
         return False
     if request.headers['Authorization'] != 'authkey ' + CHANNEL_AUTHKEY:
