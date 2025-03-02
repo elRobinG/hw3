@@ -41,7 +41,7 @@ app.app_context().push()
 
 # Hub config: Use your course hub + the provided server authkey
 HUB_URL = "http://vm146.rz.uni-osnabrueck.de/hub"
-HUB_AUTHKEY = "Crr-K24d-2N"  # This is for registering with the hub
+HUB_AUTHKEY = "Sdh-ako34-hf"  # This is for registering with the hub
 
 # Channel config
 CHANNEL_AUTHKEY = "0987654321"   # This is for clients calling your channel
