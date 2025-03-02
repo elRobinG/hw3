@@ -6,13 +6,7 @@ import re
 import os
 from datetime import datetime
 from flask_cors import CORS  # Import Flask-CORS
-app = Flask(__name__)
-CORS(app)
 
-import traceback
-@app.errorhandler(500)
-def internal_error(exception):
-   return "<pre>"+traceback.format_exc()+"</pre>"
 def parse_timestamp(ts):
     try:
         return float(ts)
@@ -42,7 +36,7 @@ HUB_URL = 'http://localhost:5555'
 HUB_AUTHKEY = '1234567890'
 CHANNEL_AUTHKEY = '0987654321'
 CHANNEL_NAME = "CalcWizard: The Math Helper"
-CHANNEL_ENDPOINT = "http://localhost:5001"
+CHANNEL_ENDPOINT = "https://vm146.rz.uni-osnabrueck.de/u039/hw3/channel.wsgi"
 CHANNEL_FILE = 'messages.json'
 CHANNEL_TYPE_OF_SERVICE = 'aiweb24:chat'
 
