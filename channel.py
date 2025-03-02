@@ -49,7 +49,7 @@ CHANNEL_TYPE_OF_SERVICE = 'aiweb24:chat'
 def register_command():
     global CHANNEL_AUTHKEY, CHANNEL_NAME, CHANNEL_ENDPOINT
     response = requests.post(HUB_URL + '/channels',
-                             headers={'Authorization': 'authkey ' + CHANNEL_AUTHKEY},
+                             headers={'Authorization': 'authkey ' + HUB_AUTHKEY},
                              data=json.dumps({
                                 "name": CHANNEL_NAME,
                                 "endpoint": CHANNEL_ENDPOINT,
