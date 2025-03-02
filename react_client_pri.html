@@ -67,8 +67,8 @@
   <script type="text/babel">
     // Hub endpoint to get the list of channels (for production use)
     const HUB_URL = "http://vm146.rz.uos.de/hub/channels"; 
-    // This must match the CHANNEL_AUTHKEY in your Flask channel server!
-    const CHANNEL_AUTHKEY = "authkey 0987654321"; 
+    // Only store the numeric part here
+    const CHANNEL_AUTHKEY = "0987654321"; 
 
     function App() {
       const [username, setUsername] = React.useState(localStorage.getItem("username") || "");
@@ -117,7 +117,7 @@
       const [channels, setChannels] = React.useState([]);
 
       React.useEffect(() => {
-        // Uncomment the fetch below to get channels from the hub when it's available:
+        // Uncomment this if you have a hub:
         /*
         fetch(HUB_URL)
           .then(response => response.json())
@@ -127,7 +127,7 @@
           })
           .catch(error => {
             console.error("Error fetching channels:", error);
-            // Fallback to a hard-coded channel list for local testing:
+            // fallback
             setChannels([{
               id: 1,
               name: "CalcWizard: The Math Helper",
@@ -137,7 +137,7 @@
           });
         */
 
-        // For local testing, use a hard-coded channel list:
+        // Hard-coded channel for local testing
         setChannels([{
           id: 1,
           name: "CalcWizard: The Math Helper",
@@ -169,6 +169,7 @@
       const fetchMessages = () => {
         fetch(channel.endpoint, {
           headers: {
+            // "authkey " prefix plus the numeric key
             "Authorization": "authkey " + CHANNEL_AUTHKEY
           }
         })
