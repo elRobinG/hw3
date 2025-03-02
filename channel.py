@@ -36,7 +36,7 @@ app.config.from_object(__name__ + '.ConfigClass')
 app.app_context().push()
 
 # Hub and Channel configuration
-HUB_URL = 'http://localhost:5555'
+HUB_URL = "http://vm146.rz.uni-osnabrueck.de/hub"
 HUB_AUTHKEY = '1234567890'
 CHANNEL_AUTHKEY = '0987654321'
 CHANNEL_NAME = "CalcWizard: The Math Helper"
