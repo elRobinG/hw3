@@ -45,6 +45,9 @@ HUB_AUTHKEY = "Crr-K24d-2N"  # For registering with the hub
 CHANNEL_AUTHKEY = "0987654321"   # For clients calling your channel
 CHANNEL_NAME = "CalcWizard: The Math Helper"
 CHANNEL_ENDPOINT = "https://vm146.rz.uni-osnabrueck.de/u093/hw3/channel.wsgi"
+
+HUB_URL = 'http://vm146.rz.uni-osnabrueck.de/hub'
+
 CHANNEL_FILE = "messages.json"
 CHANNEL_TYPE_OF_SERVICE = "aiweb24:chat"
 
