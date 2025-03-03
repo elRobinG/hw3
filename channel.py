@@ -20,7 +20,6 @@ MAX_AGE_SECONDS = 86400
 class ConfigClass(object):
     SECRET_KEY = "This is an INSECURE secret!! DO NOT use this in production!!"
 
-
 def parse_timestamp(ts):
     try:
         return float(ts)
@@ -32,24 +31,22 @@ def parse_timestamp(ts):
             print("Error parsing timestamp:", ts, e)
             return 0
 
-
 # Create Flask app
 app = Flask(__name__)
 CORS(app)
 app.config.from_object(__name__ + ".ConfigClass")
 app.app_context().push()
 
-# Hub config: Use your course hub + the provided server authkey
+# Hub config
 HUB_URL = "http://vm146.rz.uni-osnabrueck.de/hub"
-HUB_AUTHKEY = "Crr-K24d-2N"  # This is for registering with the hub
+HUB_AUTHKEY = "Crr-K24d-2N"  # For registering with the hub
 
 # Channel config
-CHANNEL_AUTHKEY = "0987654321"   # This is for clients calling your channel
+CHANNEL_AUTHKEY = "0987654321"   # For clients calling your channel
 CHANNEL_NAME = "CalcWizard: The Math Helper"
 CHANNEL_ENDPOINT = "https://vm146.rz.uni-osnabrueck.de/u093/hw3/channel.wsgi"
 CHANNEL_FILE = "messages.json"
 CHANNEL_TYPE_OF_SERVICE = "aiweb24:chat"
-
 
 @app.cli.command("register")
 def register_command():
@@ -58,37 +55,49 @@ def register_command():
     """
     response = requests.post(
         HUB_URL + "/channels",
-        headers={"Authorization": "authkey " + HUB_AUTHKEY},  # Must be the hub key, not channel key
-        data=json.dumps({
+        headers={"Authorization": "authkey " + HUB_AUTHKEY},
+        json={
             "name": CHANNEL_NAME,
             "endpoint": CHANNEL_ENDPOINT,
             "authkey": CHANNEL_AUTHKEY,
             "type_of_service": CHANNEL_TYPE_OF_SERVICE,
-        })
+        }
     )
     if response.status_code != 200:
         print("Error creating channel:", response.status_code)
         print(response.text)
-
+    else:
+        print("✅ Channel registered successfully!")
 
 def check_authorization(req):
     """
     Checks if the incoming request matches CHANNEL_AUTHKEY.
+    Logs the raw header to spot hidden characters (like trailing spaces).
     """
     if "Authorization" not in req.headers:
+        print("❌ No Authorization header found.")
         return False
-    if req.headers["Authorization"] != ("authkey " + CHANNEL_AUTHKEY):
-        return False
-    return True
 
+    raw_auth = req.headers["Authorization"]
+    # For debugging: print exact header with repr to see hidden chars
+    print("Received Authorization header:", repr(raw_auth))
+
+    # Strip whitespace to avoid trailing spaces/newlines
+    auth_stripped = raw_auth.strip()
+    expected = "authkey " + CHANNEL_AUTHKEY
+
+    if auth_stripped != expected:
+        print(f"❌ Mismatch. Expected={repr(expected)} but got={repr(auth_stripped)}")
+        return False
+
+    return True
 
 @app.route("/health", methods=["GET"])
 def health_check():
-    # You must send the channel authkey in the header to pass
+    # Must send the channel authkey in the header to pass
     if not check_authorization(request):
         return "Invalid authorization", 400
     return jsonify({"name": CHANNEL_NAME}), 200
-
 
 @app.route("/", methods=["GET"])
 def home_page():
@@ -98,7 +107,6 @@ def home_page():
 
     messages = enforce_message_limits(read_messages())
     return jsonify(messages)
-
 
 @app.route("/", methods=["POST"])
 def send_message():
@@ -158,7 +166,6 @@ def send_message():
     save_messages(messages)
     return "OK", 200
 
-
 def read_messages():
     try:
         with open(CHANNEL_FILE, "r") as f:
@@ -167,11 +174,9 @@ def read_messages():
         messages = []
     return messages
 
-
 def save_messages(messages):
     with open(CHANNEL_FILE, "w") as f:
         json.dump(messages, f)
-
 
 def enforce_message_limits(messages):
     now = time.time()
@@ -181,7 +186,6 @@ def enforce_message_limits(messages):
     if len(messages) > MAX_MESSAGES:
         messages = messages[-MAX_MESSAGES:]
     return messages
-
 
 def initialize_channel():
     if not os.path.exists(CHANNEL_FILE) or not read_messages():
@@ -193,8 +197,6 @@ def initialize_channel():
         }
         save_messages([welcome_message])
 
-
-# Only call app.run if we want dev server, not mod_wsgi
 if __name__ == "__main__":
     initialize_channel()
     app.run(port=5001, debug=True)
