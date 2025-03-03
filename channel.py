@@ -1,5 +1,7 @@
 """
-channel.py - A simple channel server for CalcWizard
+channel.py - A channel server for CalcWizard that:
+  - Allows GET requests (including /health) with NO auth, so browsers can open directly.
+  - Requires auth for POST (send_message) requests.
 """
 
 import os
@@ -42,11 +44,9 @@ HUB_URL = "http://vm146.rz.uni-osnabrueck.de/hub"
 HUB_AUTHKEY = "Crr-K24d-2N"  # For registering with the hub
 
 # Channel config
-CHANNEL_AUTHKEY = "0987654321"   # For clients calling your channel
+CHANNEL_AUTHKEY = "0987654321"   # For POST requests from clients
 CHANNEL_NAME = "CalcWizard: The Math Helper"
 CHANNEL_ENDPOINT = "https://vm146.rz.uni-osnabrueck.de/u093/hw3/channel.wsgi"
-
-HUB_URL = 'http://vm146.rz.uni-osnabrueck.de/hub'
 
 CHANNEL_FILE = "messages.json"
 CHANNEL_TYPE_OF_SERVICE = "aiweb24:chat"
@@ -72,7 +72,22 @@ def register_command():
     else:
         print("✅ Channel registered successfully!")
 
-def check_authorization(req):
+def debug_auth(raw_auth, expected):
+    """
+    Debug-print the raw vs. expected authorization strings (to catch hidden chars).
+    """
+    print("Received (raw):", repr(raw_auth))
+    print("Expected:", repr(expected))
+    stripped_auth = raw_auth.strip()
+    print("Received (stripped):", repr(stripped_auth))
+    print("Received code points:", [ord(c) for c in stripped_auth])
+    print("Expected code points:", [ord(c) for c in expected])
+
+def check_authorization_for_post(req):
+    """
+    Only used for POST requests.
+    Checks if the incoming request matches CHANNEL_AUTHKEY.
+    """
     if "Authorization" not in req.headers:
         print("❌ No Authorization header found.")
         return False
@@ -80,48 +95,41 @@ def check_authorization(req):
     raw_auth = req.headers["Authorization"]
     expected = "authkey " + CHANNEL_AUTHKEY
 
-    # Print with repr() to catch hidden chars
-    print("Received (raw):", repr(raw_auth))
-    print("Expected:", repr(expected))
+    # Debug info for hidden chars
+    debug_auth(raw_auth, expected)
 
-    # Also strip to remove trailing spaces/newlines
-    stripped_auth = raw_auth.strip()
-    print("Received (stripped):", repr(stripped_auth))
-
-    # Print code points for each character
-    print("Received code points:", [ord(c) for c in stripped_auth])
-    print("Expected code points:", [ord(c) for c in expected])
-
-    if stripped_auth != expected:
+    if raw_auth.strip() != expected:
         print("❌ Mismatch.")
         return False
 
     return True
 
-
 @app.route("/health", methods=["GET"])
 def health_check():
-    # Must send the channel authkey in the header to pass
-    if not check_authorization(request):
-        return "Invalid authorization", 400
+    """
+    Allows direct browser visits (no auth required).
+    The hub will still provide auth if it wants to check strictly, 
+    but we won't fail if it's missing. 
+    """
     return jsonify({"name": CHANNEL_NAME}), 200
 
 @app.route("/", methods=["GET"])
 def home_page():
-    # Must have correct Authorization
-    if not check_authorization(request):
-        return "Invalid authorization", 400
-
+    """
+    Allows GET without auth. So you can open in a browser and see messages.
+    """
     messages = enforce_message_limits(read_messages())
     return jsonify(messages)
 
 @app.route("/", methods=["POST"])
 def send_message():
-    print("we got to send_message")
-    # Must have correct Authorization
-    if not check_authorization(request):
+    """
+    For POST requests to send new messages: AUTH IS REQUIRED.
+    """
+    if not check_authorization_for_post(request):
         return "Invalid authorization", 400
 
+    print("we got to send_message")
     message = request.json
     if not message:
         return "No message", 400
