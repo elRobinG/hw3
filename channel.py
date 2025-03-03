@@ -73,27 +73,31 @@ def register_command():
         print("✅ Channel registered successfully!")
 
 def check_authorization(req):
-    """
-    Checks if the incoming request matches CHANNEL_AUTHKEY.
-    Logs the raw header to spot hidden characters (like trailing spaces).
-    """
     if "Authorization" not in req.headers:
         print("❌ No Authorization header found.")
         return False
 
     raw_auth = req.headers["Authorization"]
-    # For debugging: print exact header with repr to see hidden chars
-    print("Received Authorization header:", repr(raw_auth))
-
-    # Strip whitespace to avoid trailing spaces/newlines
-    auth_stripped = raw_auth.strip()
     expected = "authkey " + CHANNEL_AUTHKEY
 
-    if auth_stripped != expected:
-        print(f"❌ Mismatch. Expected={repr(expected)} but got={repr(auth_stripped)}")
+    # Print with repr() to catch hidden chars
+    print("Received (raw):", repr(raw_auth))
+    print("Expected:", repr(expected))
+
+    # Also strip to remove trailing spaces/newlines
+    stripped_auth = raw_auth.strip()
+    print("Received (stripped):", repr(stripped_auth))
+
+    # Print code points for each character
+    print("Received code points:", [ord(c) for c in stripped_auth])
+    print("Expected code points:", [ord(c) for c in expected])
+
+    if stripped_auth != expected:
+        print("❌ Mismatch.")
         return False
 
     return True
+
 
 @app.route("/health", methods=["GET"])
 def health_check():
@@ -113,6 +117,7 @@ def home_page():
 
 @app.route("/", methods=["POST"])
 def send_message():
+    print("we got to send_message")
     # Must have correct Authorization
     if not check_authorization(request):
         return "Invalid authorization", 400
